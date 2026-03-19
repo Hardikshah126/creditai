@@ -1,14 +1,22 @@
-import { Link, Outlet, useLocation } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { LogOut } from "lucide-react";
+import { clearToken, getUser } from "@/lib/api";
 
 const navLinks = [
   { label: "Applicants", path: "/lender" },
   { label: "Analytics", path: "/lender/analytics" },
-  { label: "Settings", path: "/lender/settings" },
 ];
 
 const LenderShell = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const user = getUser();
+  const initials = user?.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "L";
+
+  const handleLogout = () => {
+    clearToken();
+    navigate("/signup");
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -38,10 +46,17 @@ const LenderShell = () => {
             </nav>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground hidden sm:block">Apex Lending Co.</span>
+            <span className="text-sm text-muted-foreground hidden sm:block">{user?.name || "Lender"}</span>
             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-              <span className="text-sm font-semibold text-primary">AL</span>
+              <span className="text-sm font-semibold text-primary">{initials}</span>
             </div>
+            <button
+              onClick={handleLogout}
+              className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              title="Log out"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
         </div>
       </header>

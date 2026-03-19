@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from app.api.routes import analytics
 
 from app.core.config import settings
 from app.api.routes import auth, submissions, agent, reports, lender, history, settings as settings_router
@@ -44,6 +45,7 @@ app.include_router(reports.router,     prefix=PREFIX)
 app.include_router(lender.router,      prefix=PREFIX)
 app.include_router(history.router,     prefix=PREFIX)
 app.include_router(settings_router.router, prefix=PREFIX)
+app.include_router(analytics.router, prefix="/api/v1")
 
 
 @app.get("/health")

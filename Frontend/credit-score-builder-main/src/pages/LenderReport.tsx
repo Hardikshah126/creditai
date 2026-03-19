@@ -9,6 +9,8 @@ import SignalCard from "@/components/SignalCard";
 import { getLenderReport, recordDecision } from "@/lib/api";
 import { toast } from "sonner";
 
+type Decision = "approved" | "declined";
+
 const LenderReport = () => {
   const { id } = useParams();
   const [report, setReport] = useState<any>(null);
@@ -22,12 +24,12 @@ const LenderReport = () => {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const handleDecision = async (decision: "APPROVED" | "REJECTED") => {
+  const handleDecision = async (decision: Decision) => {
     setDeciding(true);
     try {
       await recordDecision(Number(id), decision);
       setReport((prev: any) => ({ ...prev, lender_decision: decision }));
-      toast.success(decision === "APPROVED" ? "Application approved!" : "Application rejected.");
+      toast.success(decision === "approved" ? "Application approved!" : "Application declined.");
     } catch {
       toast.error("Failed to record decision");
     } finally {
@@ -61,14 +63,21 @@ const LenderReport = () => {
   const improvementAreas = typeof report.improvement_areas === "string"
     ? JSON.parse(report.improvement_areas || "[]")
     : (report.improvement_areas || []);
+
   const generatedDate = new Date(report.created_at).toLocaleDateString("en-IN", {
     month: "long", day: "numeric", year: "numeric",
   });
 
-  const decisionColor = {
-    APPROVED: "text-success border-success/30 bg-success/10",
-    REJECTED: "text-destructive border-destructive/30 bg-destructive/10",
-  }[report.lender_decision as string] || "";
+  const decisionLabel = report.lender_decision
+    ? report.lender_decision.charAt(0).toUpperCase() + report.lender_decision.slice(1)
+    : null;
+
+  const decisionStyle =
+    report.lender_decision === "approved"
+      ? "text-success border-success/30 bg-success/10"
+      : report.lender_decision === "declined"
+      ? "text-destructive border-destructive/30 bg-destructive/10"
+      : "";
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -83,9 +92,9 @@ const LenderReport = () => {
           <h1 className="text-2xl font-bold tracking-tight text-foreground">{report.user_name}</h1>
           <p className="text-sm text-muted-foreground">India · Report generated {generatedDate}</p>
         </div>
-        {report.lender_decision && (
-          <span className={`ml-auto text-xs font-semibold px-3 py-1 rounded-full border ${decisionColor}`}>
-            {report.lender_decision}
+        {decisionLabel && (
+          <span className={`ml-auto text-xs font-semibold px-3 py-1 rounded-full border ${decisionStyle}`}>
+            {decisionLabel}
           </span>
         )}
       </div>
@@ -96,7 +105,9 @@ const LenderReport = () => {
           <ScoreGauge score={report.score} size={220} />
         </div>
         <RiskBadge tier={report.risk_tier?.toLowerCase()} />
-        <p className="text-sm text-muted-foreground mt-2">ML Probability: {(report.ml_probability * 100).toFixed(1)}%</p>
+        <p className="text-sm text-muted-foreground mt-2">
+          ML Probability: {(report.ml_probability * 100).toFixed(1)}%
+        </p>
       </Card>
 
       {/* Report summary */}
@@ -124,12 +135,14 @@ const LenderReport = () => {
         <Card className="p-6 border-l-4 border-l-success">
           <h3 className="font-semibold text-foreground mb-3">Positive Signals</h3>
           <div className="space-y-2">
-            {positiveSignals.map((s: string, i: number) => (
+            {positiveSignals.length > 0 ? positiveSignals.map((s: string, i: number) => (
               <div key={i} className="flex items-start gap-2">
                 <Check className="h-4 w-4 text-success mt-0.5 flex-shrink-0" />
                 <span className="text-sm text-muted-foreground">{s}</span>
               </div>
-            ))}
+            )) : (
+              <p className="text-sm text-muted-foreground">No positive signals detected.</p>
+            )}
           </div>
         </Card>
         <Card className="p-6 border-l-4 border-l-warning">
@@ -152,18 +165,20 @@ const LenderReport = () => {
           <div className="flex gap-3">
             <Button
               className="rounded-lg bg-success hover:bg-success/90 text-white gap-2"
-              onClick={() => handleDecision("APPROVED")}
+              onClick={() => handleDecision("approved")}
               disabled={deciding}
             >
-              <ThumbsUp className="h-4 w-4" /> Approve
+              {deciding ? <Loader2 className="h-4 w-4 animate-spin" /> : <ThumbsUp className="h-4 w-4" />}
+              Approve
             </Button>
             <Button
               variant="outline"
               className="rounded-lg text-destructive border-destructive/30 hover:bg-destructive/10 gap-2"
-              onClick={() => handleDecision("REJECTED")}
+              onClick={() => handleDecision("declined")}
               disabled={deciding}
             >
-              <ThumbsDown className="h-4 w-4" /> Reject
+              {deciding ? <Loader2 className="h-4 w-4 animate-spin" /> : <ThumbsDown className="h-4 w-4" />}
+              Decline
             </Button>
           </div>
         </Card>
@@ -174,7 +189,10 @@ const LenderReport = () => {
         <Button
           variant="outline"
           className="rounded-lg"
-          onClick={() => { navigator.clipboard.writeText(window.location.href); toast.success("Link copied!"); }}
+          onClick={() => {
+            navigator.clipboard.writeText(window.location.href);
+            toast.success("Link copied!");
+          }}
         >
           Share Report
         </Button>

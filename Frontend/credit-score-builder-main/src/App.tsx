@@ -16,6 +16,7 @@ import SettingsPage from "./pages/Settings";
 import LenderShell from "./components/LenderShell";
 import Lender from "./pages/Lender";
 import LenderReport from "./pages/LenderReport";
+import LenderAnalytics from "./pages/LenderAnalytics";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -40,6 +41,7 @@ const App = () => (
           <Route path="/lender" element={<LenderShell />}>
             <Route index element={<Lender />} />
             <Route path="report/:id" element={<LenderReport />} />
+            <Route path="analytics" element={<LenderAnalytics />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
