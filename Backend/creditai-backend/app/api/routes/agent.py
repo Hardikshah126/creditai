@@ -44,30 +44,36 @@ async def send_message(
     sub = await _get_submission(submission_id, current_user, db)
     first_name = current_user.name.split()[0]
 
-    # ── Step 1: First message — extract docs then start conversation ──────────
+    # ── Step 1: First message — OCR + extract + start conversation ────────────
     if sub.status == SubmissionStatus.DOCUMENTS_UPLOADED and not sub.messages:
         docs_result = await db.execute(
             select(Document).where(Document.submission_id == submission_id)
         )
         docs = docs_result.scalars().all()
+
+        # Pass file_path and mime_type so OCR can read the actual image
         doc_texts = [
-            {"doc_type": d.doc_type, "text": d.extracted_text or d.original_filename}
+            {
+                "doc_type": d.doc_type,
+                "text": d.extracted_text or "",  # may be empty — OCR will fill it
+                "file_path": d.file_path,
+                "mime_type": d.mime_type,
+                "filename": d.original_filename,
+            }
             for d in docs
         ]
 
         sub.status = SubmissionStatus.ANALYZING
         await db.flush()
 
-        # Extract features from documents
+        # Extract features — OCR happens inside this call
         features = await agent_service.extract_features_from_documents(doc_texts)
         sub.extracted_features = json.dumps(features)
         sub.status = SubmissionStatus.AWAITING_CHAT
 
-        # Determine first question to ask
         next_feature = agent_service.get_next_missing_feature(features)
         doc_context = agent_service._build_doc_context(features)
 
-        # Generate natural greeting + first question via Gemini
         message = await agent_service.generate_natural_response(
             previous_feature=None,
             previous_answer=None,
@@ -96,7 +102,6 @@ async def send_message(
     if sub.status == SubmissionStatus.AWAITING_CHAT:
         features = json.loads(sub.extracted_features or "{}")
 
-        # Find which feature the last AI message was asking about
         msgs_result = await db.execute(
             select(ConversationMessage)
             .where(ConversationMessage.submission_id == submission_id)
@@ -108,7 +113,6 @@ async def send_message(
             (m for m in recent_msgs if m.role == "ai" and m.target_feature), None
         )
 
-        # Save user message
         user_msg = ConversationMessage(
             submission_id=submission_id,
             role="user",
@@ -116,7 +120,6 @@ async def send_message(
         )
         db.add(user_msg)
 
-        # Parse and store the answer using Python (reliable)
         answered_feature = None
         if last_ai_with_feature and last_ai_with_feature.target_feature:
             answered_feature = last_ai_with_feature.target_feature
@@ -125,11 +128,9 @@ async def send_message(
                 features[answered_feature] = parsed
                 sub.extracted_features = json.dumps(features)
 
-        # Find next unanswered feature
         next_feature = agent_service.get_next_missing_feature(features)
         doc_context = agent_service._build_doc_context(features)
 
-        # Generate natural response via Gemini
         message = await agent_service.generate_natural_response(
             previous_feature=answered_feature,
             previous_answer=body.content,
